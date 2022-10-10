@@ -12,6 +12,7 @@ error KernelAdapter_OnlyKernel(address caller_);
 // MODULE
 
 error Module_PolicyNotAuthorized(address policy_);
+error Module_OnlyRole(Role role_);
 
 // POLICY
 
@@ -85,6 +86,13 @@ abstract contract Module is KernelAdapter {
         _;
     }
 
+    modifier onlyRole(Role role_) {
+        if (!kernel.hasRole(msg.sender, role_)) {
+            revert Module_OnlyRole(role_);
+        }
+        _;
+    }
+
     function KEYCODE() public pure virtual returns (Keycode);
 
     /// @notice Specify which version of a module is being implemented.
@@ -104,10 +112,9 @@ abstract contract Policy is KernelAdapter  {
 
     constructor(Kernel kernel_) KernelAdapter(kernel_) {}
 
-    modifier onlyRole(bytes32 role_) {
-        Role role = toRole(role_);
-        if(!kernel.hasRole(msg.sender, role))
-            revert Policy_OnlyRole(role);
+    modifier onlyRole(Role role_) {
+        if(!kernel.hasRole(msg.sender, role_))
+            revert Policy_OnlyRole(role_);
         _;
     }
 
