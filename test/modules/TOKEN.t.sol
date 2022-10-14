@@ -5,14 +5,14 @@ import { Test } from "forge-std/Test.sol";
 import { UserFactory } from "test-utils/UserFactory.sol";
 
 import { Token } from "src/modules/TOKEN.sol";
-import { Tally } from "src/policies/Tally.sol";
+import { TallyToken } from "src/policies/TallyToken.sol";
 import "src/Kernel.sol";
 import "src/modules/TOKEN.sol";
 
 contract TokenTest is Test {
     Kernel internal kernel;
     Token internal token;
-    Tally internal tally;
+    TallyToken internal tallyToken;
 
     address public deployer;
     address public user;
@@ -29,7 +29,7 @@ contract TokenTest is Test {
         vm.startPrank(deployer);
         kernel = new Kernel();
         token = new Token(kernel);
-        tally = new Tally(kernel);
+        tallyToken = new TallyToken(kernel);
 
         // grant COMPTROLLER role to deployer(self) and to kernel
         Role COMPTROLLER = token.COMPTROLLER();
@@ -55,28 +55,28 @@ contract TokenTest is Test {
         assertEq(fromKeycode(addedKeycode), fromKeycode(tokenKeycode));
     }
 
-    // test Tally policy was activated properly
+    // test TallyToken policy was activated properly
     // properly configured permissions are required for any Policy to be deployed
-    function testActivateTallyPolicy() public {
+    function testActivateTallyTokenPolicy() public {
         vm.startPrank(deployer);
         kernel.executeAction(Actions.InstallModule, address(token));
-        kernel.executeAction(Actions.ActivatePolicy, address(tally));
+        kernel.executeAction(Actions.ActivatePolicy, address(tallyToken));
         vm.stopPrank();
 
         // check Policy was set to active
-        bool activeStatus = tally.isActive();
+        bool activeStatus = tallyToken.isActive();
         assertTrue(activeStatus);
         // check Kernel policy registry updates ran smoothly
-        Policy activatedTally = kernel.activePolicies(0);
-        assertEq(address(activatedTally), address(tally));
-        uint256 firstPolicy = kernel.getPolicyIndex(tally);
+        Policy activatedTallyToken = kernel.activePolicies(0);
+        assertEq(address(activatedTallyToken), address(tallyToken));
+        uint256 firstPolicy = kernel.getPolicyIndex(tallyToken);
         assertEq(firstPolicy, 0);
 
         // check Kernel's dependencies recordkeeping
         Keycode tokenKeycode = toKeycode("TOKEN");
         Policy newDependent = kernel.moduleDependents(tokenKeycode, 0);
-        assertEq(address(newDependent), address(tally));
-        uint256 newDependentIndex = kernel.getDependentIndex(tokenKeycode, tally);
+        assertEq(address(newDependent), address(tallyToken));
+        uint256 newDependentIndex = kernel.getDependentIndex(tokenKeycode, tallyToken);
         assertEq(newDependentIndex, 0);
     }
 
@@ -89,11 +89,11 @@ contract TokenTest is Test {
         token.mintTo(user, 1);
     }
 
-    // test transfer() cannot be called on TOKEN module and is disabled initially on Tally policy
+    // test transfer() cannot be called on TOKEN module and is disabled initially on TallyToken policy
     function testTransferDisabled() public {
         vm.startPrank(deployer);
         kernel.executeAction(Actions.InstallModule, address(token));
-        kernel.executeAction(Actions.ActivatePolicy, address(tally));
+        kernel.executeAction(Actions.ActivatePolicy, address(tallyToken));
         vm.stopPrank();
         
         bytes memory errorPermissioned = abi.encodeWithSelector(Module_PolicyNotAuthorized.selector, deployer);
@@ -107,14 +107,14 @@ contract TokenTest is Test {
         // ensure tokens cannot be transferred on policy contract while transfers are disabled
         vm.expectRevert(errorDisabled);
         vm.prank(deployer);
-        tally.transfer(user, 1);
+        tallyToken.transfer(user, 1);
     }
 
     // test transferFrom() is disabled initially
     function testTransferFromDisabled() public {
         vm.startPrank(deployer);
         kernel.executeAction(Actions.InstallModule, address(token));
-        kernel.executeAction(Actions.ActivatePolicy, address(tally));
+        kernel.executeAction(Actions.ActivatePolicy, address(tallyToken));
         token.mintTo(user, 100);
         vm.stopPrank();
 
@@ -128,16 +128,16 @@ contract TokenTest is Test {
         vm.expectRevert(errorPermissioned);
         token.transferFrom(user, address(this), 1);
 
-        // ensure transferFrom() is disabled on Tally policy to start
+        // ensure transferFrom() is disabled on TallyToken policy to start
         vm.expectRevert(errorDisabled);
-        tally.transferFrom(user, address(this), 1);
+        tallyToken.transferFrom(user, address(this), 1);
     }
 
     // test transfer and transferFrom can be enabled only by Medici admins
     function testToggleTransfersEnabled() public {
         vm.startPrank(deployer);
         kernel.executeAction(Actions.InstallModule, address(token));
-        kernel.executeAction(Actions.ActivatePolicy, address(tally));
+        kernel.executeAction(Actions.ActivatePolicy, address(tallyToken));
         token.mintTo(user, 100);
         vm.stopPrank();
 
@@ -146,16 +146,18 @@ contract TokenTest is Test {
         bytes memory errorNotComptroller = abi.encodeWithSelector(Policy_OnlyRole.selector, comptroller);
         vm.expectRevert(errorNotComptroller);
         vm.prank(user);
-        tally.toggleTransfersAllowed();
+        tallyToken.toggleTransfersAllowed();
 
         // ensure deployer address was properly granted COMPTROLLER role
         assertTrue(kernel.hasRole(deployer, comptroller));
 
         // then check deployer can enable transfers via toggleTransfersAllowed()
         vm.prank(deployer);
-        tally.toggleTransfersAllowed();
-        assertTrue(tally.transfersAllowed());
+        tallyToken.toggleTransfersAllowed();
+        assertTrue(tallyToken.transfersAllowed());
     }
 
     //todo test delegations function to delegates works properly
+
+    //todo set executor to governance module
 }

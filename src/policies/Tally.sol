@@ -1,80 +1,110 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.13;
+// The Tally Policy inherits the OpenZeppelin IGovernor.sol interface to conform to Tally.xyz frontend API.
+// This policy routes governance decisions through the [GOVRN] module which inherits OpenZeppelin's Governor.sol to provide an external-facing API that conforms to Tally.xyz's frontend
+// @notice Voting weight calculation is outsourced to the [TOKEN] module
 
+pragma solidity ^0.8.15;
+
+import { IGovernor } from "openzeppelin-contracts/governance/IGovernor.sol";
 import "../Kernel.sol";
-import "../modules/TOKEN.sol";
-import { toKeycode } from "../utils/KernelUtils.sol";
+import "../modules/GOVRN.sol";
 
-// The Tally policy should inherit OpenZeppelin's Governor.sol to provide an external-facing API that conforms to Tally.xyz's frontend
-// Currently the Tally policy also handles TOKEN module user-facing logic, which in the future may need to be offloaded to a separate token-specific contract
+contract Tally is Policy /*, IGovernor*/ {
 
-contract Tally is Policy {
-
-    // set by a call from the Kernel to configureDependencies() when this Policy is enabled in the Kernel registry
-    Token token;
-
-    // @notice Boolean for Medici admins to enable/disable transfer() and transferFrom()
-    bool public transfersAllowed;
-
-    modifier transfersEnabled() {
-        if (!transfersAllowed) {
-            revert Token_TransferDisabled();
+    /// **Function signatures required for compatibility w/ Tally** ///
+    /* 
+        function votingDelay() public view virtual returns (uint256) {
+            return governance.votingDelay();
         }
-        _;
-    }
+        function votingPeriod() public view virtual returns (uint256) {
+            return governance.votingPeriod();
+        }
+        function quorum(uint256 blockNumber) public view virtual returns (uint256) {
+            return governance.quorum(blockNumber);
+        }
+        function proposalThreshold() public view virtual returns (uint256) {
+            return governance.proposalThreshold();
+        }
+        function state(uint256 proposalId) public view virtual override returns (ProposalState) {
+            return governance.state(proposalId);
+        }
 
-    constructor(Kernel kernel_) Policy(kernel_) {}
-    
-    // @notice Required to initialize a Policy
-    // @dev Sets permitted function signatures, module keycode, and address in the Kernel
-    function requestPermissions() external view override onlyKernel returns (Permissions[] memory requests) {
-        requests = new Permissions[](3);
-        requests[0] = Permissions(toKeycode("TOKEN"), Token.transfer.selector);
-        requests[1] = Permissions(toKeycode("TOKEN"), Token.transferFrom.selector);
-        requests[2] = Permissions(toKeycode("TOKEN"), Token.mintTo.selector);
-    }
+        function getVotes(
+            address account, 
+            uint256 blockNumber
+        ) public view virtual returns (uint256);
 
-    // @notice Required to initialized a Policy
-    // @dev Sets various Module dependencies via keycodes for a Policy to call on
-    function configureDependencies() external override onlyKernel returns (Keycode[] memory dependencies) {
-        Keycode tokenKeycode = toKeycode("TOKEN");
-        dependencies = new Keycode[](1);
-        dependencies[0] = tokenKeycode;
-        // set token in storage to dependency
-        token = Token(getModuleAddress(tokenKeycode));
-    }
+        function propose(
+            address[] memory targets,
+            uint256[] memory values,
+            bytes[] memory calldatas,
+            string memory description
+        ) public virtual returns (uint256 proposalId) {
+            emit ProposalCreated(
+                uint256 proposalId,
+                address proposer,
+                address[] targets,
+                uint256[] values,
+                string[] signatures,
+                bytes[] calldatas,
+                uint256 startBlock,
+                uint256 endBlock,
+                string description
+            )
+        }
 
-    /*
-    /// External-facing API via TOKEN module backend ///
-    */
+        function execute(
+            address[] memory targets,
+            uint256[] memory values,
+            bytes[] memory calldatas,
+            bytes32 descriptionHash
+        ) public payable virtual returns (uint256 proposalId) {
+            emit ProposalExecuted(uint256 proposalId)
+        }
 
-    // @notice Function to enable transfers by flipping transfersEnabled boolean
-    // @dev This function may only be called by Medici team admins to enable/disable transfers at time of their discretion
-    function toggleTransfersAllowed() external onlyRole(token.COMPTROLLER()) {
-        transfersAllowed = !transfersAllowed;
-    }
+        function castVote(
+            uint256 proposalId, 
+            uint8 support
+        ) public virtual returns (uint256 balance) {
+            emit VoteCast(
+                address indexed voter, 
+                uint256 proposalId, 
+                uint8 support, 
+                uint256 weight, 
+                string reason
+            )
+        }
 
-    // @notice Function to send tokens
-    // @dev Access control and Medici team enabling/disabling of transfers handled on backend
-    function transfer(address to, uint256 amount) public transfersEnabled {
-        token.transfer(to, amount);
-    }
+        function castVoteWithReason(
+            uint256 proposalId,
+            uint8 support,
+            string calldata reason
+        ) public virtual returns (uint256 balance) {
+            emit VoteCast(
+                address indexed voter, 
+                uint256 proposalId, 
+                uint8 support, 
+                uint256 weight, 
+                string reason
+            )
+        }
 
-    // @notice Function for Medici contracts to send tokens on behalf of users
-    // @dev Access control and Medici team enabling/disabling of transferFrom handled on backend
-    function transferFrom(
-        address from, 
-        address to, 
-        uint256 amount) public transfersEnabled {
-            token.transferFrom(from, to, amount);
-    }
+        function castVoteBySig(
+            uint256 proposalId,
+            uint8 support,
+            uint8 v,
+            bytes32 r,
+            bytes32 s
+        ) public virtual returns (uint256 balance) {
+            emit VoteCast(
+                address indexed voter, 
+                uint256 proposalId, 
+                uint8 support, 
+                uint256 weight, 
+                string reason
+            )
+        }
+    */ 
 
-    // @notice delegation function todo
-    function delegate(address to) external {
-        //todo
-        // require balanceOf(msg.sender) > certain threshold;
-        // calculate token vote weight via Governor.sol
-        // for simplicity's sake, delegate entire balance of msg.sender
-    }
 }

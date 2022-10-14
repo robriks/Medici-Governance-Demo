@@ -2,6 +2,8 @@
 
 // [VOTES] The Votes Module is the ERC20 token that represents voting power in the network.
 
+// change to 721
+
 pragma solidity ^0.8.15;
 
 import { ERC20 } from "solmate/tokens/ERC20.sol";
