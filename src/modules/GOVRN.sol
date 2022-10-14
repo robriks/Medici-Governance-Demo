@@ -7,10 +7,10 @@
 pragma solidity ^0.8.15;
 
 // does the module need to inherit governor or is it enough to inherit Governor.sol in the external-facing policy?
-import { Governor } from "openzeppelin-contracts/governance/Governor.sol";
+import { GovernorVotes } from "openzeppelin-contracts/governance/extensions/GovernorVotes.sol";
 import { Kernel, Module, Keycode } from "src/Kernel.sol";
 
-contract Governance is Module /*, Governor*/ {
+contract Governance is Module /*, GovernorVotes */ {
     constructor(Kernel kernel_) Module(kernel_) {}
 
     // @notice Returns keycode for Policy/Kernel management
@@ -23,6 +23,29 @@ contract Governance is Module /*, Governor*/ {
         // alpha version 0.1 
         return (0, 1);
     }    
+    
+    function quorum(uint256 blockNumber) public pure override returns (uint256) {
+        return 3;
+    }
+
+    function votingDelay() public view override(IGovernor /*, GovernorSettings */) returns (uint256) {
+        return super.votingDelay();
+    }
+
+    function votingPeriod() public view override(IGovernor /*, GovernorSettings */) returns (uint256) {
+        return super.votingPeriod();
+    }
+
+    function state(uint256 proposalId) public view override(IGovernor) returns (ProposalState) {
+        return super.state(proposalId);
+    }
+
+    //function propose()
+    //function proposalThreshold()
+    //function _execute()
+    //function _cancel()
+    //function _executor()
+    //function supportsInterface()
     
     //todo
     /*Governance function ideas:

@@ -21,7 +21,7 @@ The Default Framework's main advantage lies in one factor: ease of development. 
 ### Cheatsheet
 keycode == custom type that points to specific modules
 admin == team member who grants roles
-executor == team member who handles kernel policy/module upgrades
+executor == address that handles kernel policy/module upgrades (Governance.sol policy)
 roles == custom type that handles access control for both users and contracts across policies + modules
 dependencies == modules used by policies
 permissions == struct that handles access control for policy contracts to use specific module dependency functions

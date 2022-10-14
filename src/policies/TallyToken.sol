@@ -34,7 +34,7 @@ contract TallyToken is Policy {
         requests[2] = Permissions(toKeycode("TOKEN"), Token.mintTo.selector);
     }
 
-    // @notice Required to initialized a Policy
+    // @notice Required to initialize a Policy
     // @dev Sets various Module dependencies via keycodes for a Policy to call on
     function configureDependencies() external override onlyKernel returns (Keycode[] memory dependencies) {
         Keycode tokenKeycode = toKeycode("TOKEN");
