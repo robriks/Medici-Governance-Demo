@@ -29,9 +29,9 @@ contract TallyToken is Policy {
     // @dev Sets permitted function signatures, module keycode, and address in the Kernel
     function requestPermissions() external view override onlyKernel returns (Permissions[] memory requests) {
         requests = new Permissions[](3);
-        requests[0] = Permissions(toKeycode("TOKEN"), Token.transfer.selector);
-        requests[1] = Permissions(toKeycode("TOKEN"), Token.transferFrom.selector);
-        requests[2] = Permissions(toKeycode("TOKEN"), Token.mintTo.selector);
+        requests[0] = Permissions(toKeycode("TOKEN"), Token.transferFrom.selector);
+        requests[1] = Permissions(toKeycode("TOKEN"), Token.safeTransferFrom.selector);
+        // mint.selector
     }
 
     // @notice Required to initialize a Policy
@@ -54,26 +54,21 @@ contract TallyToken is Policy {
         transfersAllowed = !transfersAllowed;
     }
 
-    // @notice Function to send tokens
-    // @dev Access control and Medici team enabling/disabling of transfers handled on backend
-    function transfer(address to, uint256 amount) public transfersEnabled {
-        token.transfer(to, amount);
-    }
-
     // @notice Function for Medici contracts to send tokens on behalf of users
-    // @dev Access control and Medici team enabling/disabling of transferFrom handled on backend
+    // @dev Call to approve() is necessary here as a result of a msg.sender check in the backend module when called by this frontend policy
     function transferFrom(
         address from, 
         address to, 
-        uint256 amount) public transfersEnabled {
-            token.transferFrom(from, to, amount);
+        uint256 id) public transfersEnabled {
+            token.transferFrom(from, to, id);
     }
 
-    // @notice delegation function todo
-    function delegate(address to) external {
-        //todo
-        // require balanceOf(msg.sender) > certain threshold;
-        // calculate token vote weight via Governor.sol
-        // for simplicity's sake, delegate entire balance of msg.sender
+    // @notice Function for Medici contracts to send tokens on behalf of users with additional ERC721TokenReceiver check
+    // @dev Access control and Medici team enabling/disabling of safeTransferFrom handled on backend
+    function safeTransferFrom(
+        address from, 
+        address to, 
+        uint256 id) public transfersEnabled {
+            token.safeTransferFrom(from, to, id);
     }
 }

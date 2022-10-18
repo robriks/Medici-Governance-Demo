@@ -31,9 +31,9 @@ contract Governance is Module, Governor, GovernorVotes {
     */
 
     // @notice Return the delay, in number of blocks, between proposal creation and the vote start.
-    // @dev Set to one week's worth of blocks
+    // @dev Set to instantly enable voting without delay
     function votingDelay() public view override returns (uint256) {
-        return 50400;
+        return 0;
     }
 
     // @notice Return the period, in number of blocks, between the vote start and the vote end.
@@ -140,7 +140,7 @@ contract Governance is Module, Governor, GovernorVotes {
     }
     
     function _executor() internal view override returns (address) {
-        return super._executor();
+        return address(kernel);
     }
     
     function supportsInterface(bytes4 interfaceId) public view override returns (bool) {

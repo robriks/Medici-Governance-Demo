@@ -4,7 +4,6 @@ pragma solidity ^0.8.15;
 import { Test } from "forge-std/Test.sol";
 import { UserFactory } from "test-utils/UserFactory.sol";
 
-import { Token } from "src/modules/TOKEN.sol";
 import { TallyToken } from "src/policies/TallyToken.sol";
 import "src/Kernel.sol";
 import "src/modules/TOKEN.sol";
@@ -31,7 +30,7 @@ contract TokenTest is Test {
         token = new Token(kernel);
         tallyToken = new TallyToken(kernel);
 
-        // grant COMPTROLLER role to deployer(self) and to kernel
+        // grant COMPTROLLER role to deployer and to kernel
         Role COMPTROLLER = token.COMPTROLLER();
         kernel.grantRole(COMPTROLLER, deployer);
         kernel.grantRole(COMPTROLLER, address(kernel));
@@ -55,7 +54,7 @@ contract TokenTest is Test {
         assertEq(fromKeycode(addedKeycode), fromKeycode(tokenKeycode));
     }
 
-    // test TallyToken policy was activated properly
+    // test TallyToken policy is activated properly
     // properly configured permissions are required for any Policy to be deployed
     function testActivateTallyTokenPolicy() public {
         vm.startPrank(deployer);
@@ -80,7 +79,50 @@ contract TokenTest is Test {
         assertEq(newDependentIndex, 0);
     }
 
-    // test TOKEN module's mintTo() can only be called by address with role COMPTROLLER
+    // test public mint() function works properly when called
+    // mint() is not a policy function as it is permissionless for anyone to call
+    function testMint() public {
+        // mint as deployer
+        vm.prank(deployer);
+        token.mint();
+
+        // after minting to deployer, check balance of deployer and owner of tokenId 1
+        uint256 deployerBalance = token.balanceOf(deployer);
+        address firstOwner = token.ownerOf(1);
+        assertEq(deployerBalance, 1);
+        assertEq(firstOwner, deployer);
+
+        // mint as user
+        vm.prank(user);
+        token.mint();
+
+        // after minting to user, check balance of deployer and owner of tokenId 2
+        uint256 userBalance = token.balanceOf(user);
+        address secondOwner = token.ownerOf(2);
+        assertEq(userBalance, 1);
+        assertEq(secondOwner, user);
+    }
+
+    // test COMPTROLLER-restricted mintTo() function works properly
+    // mintTo() is not a policy function as it is only intended for sparse and rare usage
+    function testMintTo() public {
+        // mintTo as deployer
+        vm.prank(deployer);
+        token.mintTo(user, 5);
+
+        // after minting to user, check balance of user
+        uint256 userBalance = token.balanceOf(user);
+        assertEq(userBalance, 5);
+
+        // check owner of tokenId 1-5
+        for (uint256 i; i < userBalance; i++) {
+            address owner = token.ownerOf(i + 1);
+            assertEq(owner, user);
+        }
+    }
+
+    // test TOKEN module's mintTo() can not be called by address without role COMPTROLLER
+    // mintTo() is not a policy function and does not require policy activation as it is restricted to Medici team
     function testComptrollerRole() public {
         Role comptroller = token.COMPTROLLER();
         bytes memory error = abi.encodeWithSelector(Module_OnlyRole.selector, comptroller);
@@ -89,38 +131,17 @@ contract TokenTest is Test {
         token.mintTo(user, 1);
     }
 
-    // test transfer() cannot be called on TOKEN module and is disabled initially on TallyToken policy
-    function testTransferDisabled() public {
-        vm.startPrank(deployer);
-        kernel.executeAction(Actions.InstallModule, address(token));
-        kernel.executeAction(Actions.ActivatePolicy, address(tallyToken));
-        vm.stopPrank();
-        
-        bytes memory errorPermissioned = abi.encodeWithSelector(Module_PolicyNotAuthorized.selector, deployer);
-        bytes4 errorDisabled = Token_TransferDisabled.selector;
-        
-        // ensure tokens cannot be transferred on module contract
-        vm.expectRevert(errorPermissioned);
-        vm.prank(deployer);
-        token.transfer(user, 1);
-        
-        // ensure tokens cannot be transferred on policy contract while transfers are disabled
-        vm.expectRevert(errorDisabled);
-        vm.prank(deployer);
-        tallyToken.transfer(user, 1);
-    }
-
-    // test transferFrom() is disabled initially
+    // test transferFrom() cannot be called directly on module and is disabled initially at policy level
     function testTransferFromDisabled() public {
         vm.startPrank(deployer);
         kernel.executeAction(Actions.InstallModule, address(token));
         kernel.executeAction(Actions.ActivatePolicy, address(tallyToken));
-        token.mintTo(user, 100);
+        token.mintTo(user, 1);
         vm.stopPrank();
 
         bytes memory errorPermissioned = abi.encodeWithSelector(Module_PolicyNotAuthorized.selector, address(this));
         bytes4 errorDisabled = Token_TransferDisabled.selector;
-        uint256 userBalance = token.balanceOf(user);
+        uint256 userBalance = 1; // tokenId 1 was minted
 
         // ensure transferFrom() cannot be called on module contract
         vm.prank(user);
@@ -133,31 +154,26 @@ contract TokenTest is Test {
         tallyToken.transferFrom(user, address(this), 1);
     }
 
-    // test transfer and transferFrom can be enabled only by Medici admins
-    function testToggleTransfersEnabled() public {
+    // test safeTransferFrom() cannot be called directly on module and is disabled initially at policy level
+    function testSafeTransferFromDisabled() public {
         vm.startPrank(deployer);
         kernel.executeAction(Actions.InstallModule, address(token));
         kernel.executeAction(Actions.ActivatePolicy, address(tallyToken));
-        token.mintTo(user, 100);
+        token.mintTo(user, 1);
         vm.stopPrank();
 
-        // ensure unauthorized users cannot flip transfersEnabled boolean
-        Role comptroller = token.COMPTROLLER();
-        bytes memory errorNotComptroller = abi.encodeWithSelector(Policy_OnlyRole.selector, comptroller);
-        vm.expectRevert(errorNotComptroller);
+        bytes memory errorPermissioned = abi.encodeWithSelector(Module_PolicyNotAuthorized.selector, address(this));
+        bytes4 errorDisabled = Token_TransferDisabled.selector;
+        uint256 userBalance = 1; // tokenId 1 was minted
+
+        // ensure transferFrom() cannot be called on module contract
         vm.prank(user);
-        tallyToken.toggleTransfersAllowed();
+        token.approve(address(this), userBalance);
+        vm.expectRevert(errorPermissioned);
+        token.safeTransferFrom(user, address(this), 1);
 
-        // ensure deployer address was properly granted COMPTROLLER role
-        assertTrue(kernel.hasRole(deployer, comptroller));
-
-        // then check deployer can enable transfers via toggleTransfersAllowed()
-        vm.prank(deployer);
-        tallyToken.toggleTransfersAllowed();
-        assertTrue(tallyToken.transfersAllowed());
+        // ensure transferFrom() is disabled on TallyToken policy to start
+        vm.expectRevert(errorDisabled);
+        tallyToken.safeTransferFrom(user, address(this), 1);
     }
-
-    //todo test delegations function to delegates works properly
-
-    //todo set executor to governance module
 }

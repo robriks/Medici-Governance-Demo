@@ -21,18 +21,18 @@ contract Tally is Policy /*, IGovernor*/ {
     // @notice Required to initialize a Policy
     // @dev Sets permitted function signatures, module keycode, and address in the Kernel
     function requestPermissions() external view override onlyKernel returns (Permissions[] memory requests) {
-        // requests = new Permissions[](11);
-        // requests[0] = Permissions(toKeycode("GOVRN"), governance.votingDelay.selector);
-        // requests[1] = Permissions(toKeycode("GOVRN"), governance.votingPeriod.selector);
-        // requests[2] = Permissions(toKeycode("GOVRN"), governance.quorum.selector);
-        // requests[3] = Permissions(toKeycode("GOVRN"), governance.proposalThreshold.selector);
-        // requests[4] = Permissions(toKeycode("GOVRN"), governance.state.selector);
-        // requests[5] = Permissions(toKeycode("GOVRN"), governance.getVotes.selector);
-        // requests[6] = Permissions(toKeycode("GOVRN"), governance.propose.selector);
-        // requests[7] = Permissions(toKeycode("GOVRN"), governance.execute.selector);
-        // requests[8] = Permissions(toKeycode("GOVRN"), governance.castVote.selector);
-        // requests[9] = Permissions(toKeycode("GOVRN"), governance.castVoteWithReason.selector);
-        // requests[10] = Permissions(toKeycode("GOVRN"), governance.castVoteBySig.selector);
+        requests = new Permissions[](11);
+        requests[0] = Permissions(toKeycode("GOVRN"), governance.votingDelay.selector);
+        requests[1] = Permissions(toKeycode("GOVRN"), governance.votingPeriod.selector);
+        requests[2] = Permissions(toKeycode("GOVRN"), governance.proposalThreshold.selector);
+        requests[3] = Permissions(toKeycode("GOVRN"), governance.quorum.selector);
+        requests[4] = Permissions(toKeycode("GOVRN"), governance.state.selector);
+        requests[5] = Permissions(toKeycode("GOVRN"), governance.getVotes.selector);
+        requests[6] = Permissions(toKeycode("GOVRN"), governance.propose.selector);
+        requests[7] = Permissions(toKeycode("GOVRN"), governance.execute.selector);
+        requests[8] = Permissions(toKeycode("GOVRN"), governance.castVote.selector);
+        requests[9] = Permissions(toKeycode("GOVRN"), governance.castVoteWithReason.selector);
+        requests[10] = Permissions(toKeycode("GOVRN"), governance.castVoteBySig.selector);
     }
 
     // @notice Required to initialize a Policy
@@ -42,7 +42,7 @@ contract Tally is Policy /*, IGovernor*/ {
         dependencies = new Keycode[](1); // + tallytoken nft contract?
         dependencies[0] = governanceKeycode;
         // set governance in storage to dependency
-        governance = Governance(getModuleAddress(governanceKeycode));
+        governance = Governance(payable(getModuleAddress(governanceKeycode)));
     }
 
 

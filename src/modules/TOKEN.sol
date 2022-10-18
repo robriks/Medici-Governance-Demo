@@ -1,24 +1,29 @@
 // SPDX-License-Identifier: MIT
 
-// [VOTES] The Votes Module is the ERC20 token that represents voting power in the network.
-
-// change to 721
+// [TOKEN] The Token Module is an ERC721 non-fungible token that represents voting power in the network.
+// @notice Handling of actual voting logic is outsourced to the Governance module
 
 pragma solidity ^0.8.15;
 
-import { ERC20 } from "solmate/tokens/ERC20.sol";
+import "openzeppelin-contracts/token/ERC721/ERC721.sol";
+import "openzeppelin-contracts/token/ERC721/extensions/ERC721Votes.sol";
+import "openzeppelin-contracts/utils/Counters.sol";
 import "src/utils/KernelUtils.sol";
 import { Kernel, Module, Keycode, Role } from "src/Kernel.sol";
 
 error Token_TransferDisabled();
 error Token_OnlyKernelAdmin();
 
-contract Token is Module, ERC20 {
+contract Token is Module, ERC721Votes {
+
+    using Counters for Counters.Counter;
+    Counters.Counter private _tokenId;
 
     // @notice Comptroller role is a Medici team member who wields the power to mint governance tokens and enable/disable transfers
+    // @dev Bear in mind that only lowercase string characters may be wrapped into a role
     Role public constant COMPTROLLER = Role.wrap("comptroller"); 
     
-    constructor(Kernel kernel_) Module(kernel_) ERC20("Governance Token", "Token", 6) {}
+    constructor(Kernel kernel_) Module(kernel_) ERC721("Medici Governance Token", "Token") EIP712("Medici Governance Token", "0.1") {}
 
     // @notice Returns keycode for Policy/Kernel management
     function KEYCODE() public pure override returns (Keycode) {
@@ -34,23 +39,20 @@ contract Token is Module, ERC20 {
     // @notice Constructoresque function to initialize module
     // @dev Should only be called once by the Kernel when installed. Does not need a check for this as Kernel rejects reinstallation
     function INIT() external override onlyKernel {
-        // arbitrary initial supply to be sent to executor. Can be decided by DAO/team when upgrading this module
-        uint initialTokenSupply = 1000; 
-        // tx.origin is safe here as it will only ever == executor
-        mintTo(tx.origin, initialTokenSupply);
+        // set initial supply, tokenURI
+        // These 'constructor' configurations may be decided by DAO/team when upgrading this module
+        // uint initialTokenSupply = ????;
+        // _setTokenURI(????) 
+        
+        // optional mintTo() call to initialize some governance tokens to Medici team/DAO
+        // keep in mind this will alter some test results if enabled
+        // mintTo(tx.origin, someAmount);
     }
 
-    /*
-    /// Policy interface ///
-    */
-
-    // @notice Transfers are disabled to start
-    // @notice This function may only be called from the permissioned() Policy
-    function transfer(
-        address to, 
-        uint256 amount
-        ) permissioned public override returns (bool success) {
-        success = super.transfer(to, amount);
+    //todo finish implementing tokenuri logic after consulting with medici on format/content
+    //todo add _setTokenURI() function to give Medici and the DAO a way to change tokenURI if needed
+    function tokenURI(uint256 id) public view override returns (string memory) {
+        return "hello world";
     }
 
     // @notice TransferFrom is disabled to start
@@ -58,18 +60,39 @@ contract Token is Module, ERC20 {
     function transferFrom(
         address from, 
         address to, 
-        uint256 amount
-    ) permissioned public override returns (bool success) {
-        success = super.transferFrom(from, to, amount);
+        uint256 id
+    ) permissioned public override {
+        super.transferFrom(from, to, id);
+    }
+
+    // @notice SafeTransferFrom is disabled to start
+    // @notice This function may only be called from the permissioned() Policy
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 id
+    ) permissioned public override {
+        super.safeTransferFrom(from, to, id);
+    }
+
+    // @notice Function for Medici community to mint governance NFTs
+    // @dev Solmate's _safeMint() is chosen here in the mint logic to prevent unsafe smart contract minters
+    function mint() public {
+        _tokenId.increment();
+        uint256 currentId = _tokenId.current();
+
+        _safeMint(msg.sender, currentId);
     }
 
     // @notice Admin-chosen users with comptroller role retain the ability to empower governors with new tokens
+    // @notice COMPTROLLER role is intended only for trustworthy members of Medici team
     // @dev onlyRole() modifier ensures only addresses granted COMPTROLLER role by Medici team may mint
-    // @param COMPTROLLER role is intended only for trustworthy members of Medici team
-    function mintTo(address to, uint256 amount) public onlyRole(COMPTROLLER) {
-        _mint(to, amount);
-    }
+    function mintTo(address to, uint256 amount) public onlyRole(COMPTROLLER) {        
+        for (uint256 i; i < amount; i++) {
+            _tokenId.increment();
+            uint256 currentId = _tokenId.current();
 
-    //todo implement delegate function
-    // then give Tally policy a way for user to delegate
+            _safeMint(to,currentId);
+        }
+    }
 }
