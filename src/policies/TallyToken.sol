@@ -16,6 +16,8 @@ contract TallyToken is Policy {
     // @notice Boolean for Medici admins to enable/disable transfer() and transferFrom()
     bool public transfersAllowed;
 
+    error OwnerMismatch(address owner);
+
     modifier transfersEnabled() {
         if (!transfersAllowed) {
             revert Token_TransferDisabled();
@@ -28,10 +30,9 @@ contract TallyToken is Policy {
     // @notice Required to initialize a Policy
     // @dev Sets permitted function signatures, module keycode, and address in the Kernel
     function requestPermissions() external view override onlyKernel returns (Permissions[] memory requests) {
-        requests = new Permissions[](3);
+        requests = new Permissions[](2);
         requests[0] = Permissions(toKeycode("TOKEN"), Token.transferFrom.selector);
         requests[1] = Permissions(toKeycode("TOKEN"), Token.safeTransferFrom.selector);
-        // mint.selector
     }
 
     // @notice Required to initialize a Policy
@@ -54,12 +55,17 @@ contract TallyToken is Policy {
         transfersAllowed = !transfersAllowed;
     }
 
-    // @notice Function for Medici contracts to send tokens on behalf of users
+    // @notice Function for user-facing transfers via this policy contract
     // @dev Call to approve() is necessary here as a result of a msg.sender check in the backend module when called by this frontend policy
     function transferFrom(
         address from, 
         address to, 
         uint256 id) public transfersEnabled {
+            address tokenOwner = token.ownerOf(id);
+            if (tokenOwner != msg.sender) {
+                revert OwnerMismatch(tokenOwner);
+            }
+
             token.transferFrom(from, to, id);
     }
 
@@ -69,6 +75,11 @@ contract TallyToken is Policy {
         address from, 
         address to, 
         uint256 id) public transfersEnabled {
+            address tokenOwner = token.ownerOf(id);
+            if (tokenOwner != msg.sender) {
+                revert OwnerMismatch(tokenOwner);
+            }
+
             token.safeTransferFrom(from, to, id);
     }
 }

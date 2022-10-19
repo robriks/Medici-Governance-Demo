@@ -9,7 +9,7 @@ import "openzeppelin-contracts/token/ERC721/ERC721.sol";
 import "openzeppelin-contracts/token/ERC721/extensions/ERC721Votes.sol";
 import "openzeppelin-contracts/utils/Counters.sol";
 import "src/utils/KernelUtils.sol";
-import { Kernel, Module, Keycode, Role } from "src/Kernel.sol";
+import { Kernel, Module, Keycode, Role, Policy } from "src/Kernel.sol";
 
 error Token_TransferDisabled();
 error Token_OnlyKernelAdmin();
@@ -57,11 +57,19 @@ contract Token is Module, ERC721Votes {
 
     // @notice TransferFrom is disabled to start
     // @notice This function may only be called from the permissioned() Policy
+    // @dev If condition ensures the permissioned policy possesses necessary approvals
+    // @dev Approval is safe here as the permissioned policy checks caller is token owner
     function transferFrom(
         address from, 
         address to, 
         uint256 id
     ) permissioned public override {
+        // approval prevents issues in case a user habitually revokes approval or manually approves another address
+        Policy policy = kernel.moduleDependents(KEYCODE(), 0);
+        if (getApproved(id) != address(policy)) {
+            _approve(address(policy), id);
+        }
+
         super.transferFrom(from, to, id);
     }
 
@@ -72,27 +80,41 @@ contract Token is Module, ERC721Votes {
         address to,
         uint256 id
     ) permissioned public override {
+        // ensure the permissioned policy possesses necessary approvals
+        // this prevents issues in case a user habitually revokes approval or manually approves another address
+        Policy policy = kernel.moduleDependents(KEYCODE(), 0);
+        if (getApproved(id) != address(policy)) {
+            _approve(address(policy), id);
+        }
+
         super.safeTransferFrom(from, to, id);
     }
 
     // @notice Function for Medici community to mint governance NFTs
     // @dev Solmate's _safeMint() is chosen here in the mint logic to prevent unsafe smart contract minters
+    // @dev The policy contract must be approved for all minted tokens so that it may perform transfers
     function mint() public {
         _tokenId.increment();
         uint256 currentId = _tokenId.current();
 
         _safeMint(msg.sender, currentId);
+
+        Policy policy = kernel.moduleDependents(KEYCODE(), 0);
+        _approve(address(policy), currentId); 
     }
 
     // @notice Admin-chosen users with comptroller role retain the ability to empower governors with new tokens
     // @notice COMPTROLLER role is intended only for trustworthy members of Medici team
     // @dev onlyRole() modifier ensures only addresses granted COMPTROLLER role by Medici team may mint
+    // @dev The policy contract must be approved for all minted tokens so that it may perform transfers
     function mintTo(address to, uint256 amount) public onlyRole(COMPTROLLER) {        
         for (uint256 i; i < amount; i++) {
             _tokenId.increment();
             uint256 currentId = _tokenId.current();
 
             _safeMint(to,currentId);
+            Policy policy = kernel.moduleDependents(KEYCODE(), 0);
+            _approve(address(policy), currentId);
         }
     }
 }

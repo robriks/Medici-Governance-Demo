@@ -82,6 +82,12 @@ contract TokenTest is Test {
     // test public mint() function works properly when called
     // mint() is not a policy function as it is permissionless for anyone to call
     function testMint() public {
+        // install module and activate policy
+        vm.startPrank(deployer);
+        kernel.executeAction(Actions.InstallModule, address(token));
+        kernel.executeAction(Actions.ActivatePolicy, address(tallyToken));
+        vm.stopPrank();
+
         // mint as deployer
         vm.prank(deployer);
         token.mint();
@@ -106,6 +112,12 @@ contract TokenTest is Test {
     // test COMPTROLLER-restricted mintTo() function works properly
     // mintTo() is not a policy function as it is only intended for sparse and rare usage
     function testMintTo() public {
+        // install module and activate policy
+        vm.startPrank(deployer);
+        kernel.executeAction(Actions.InstallModule, address(token));
+        kernel.executeAction(Actions.ActivatePolicy, address(tallyToken));
+        vm.stopPrank();
+
         // mintTo as deployer
         vm.prank(deployer);
         token.mintTo(user, 5);

@@ -63,12 +63,13 @@ contract TallyTokenTest is Test {
         assertEq(newDependentIndex, 0);
     }
 
-// test transfer and transferFrom can be enabled only by Medici admins
+    // test transfer and transferFrom can be enabled only by Medici admins
+    // performs a transfer
     function testToggleTransfersEnabled() public {
         vm.startPrank(deployer);
         kernel.executeAction(Actions.InstallModule, address(token));
         kernel.executeAction(Actions.ActivatePolicy, address(tallyToken));
-        token.mintTo(user, 1);
+        token.mintTo(user, 2);
         vm.stopPrank();
 
         // ensure unauthorized users cannot flip transfersEnabled boolean
@@ -95,5 +96,46 @@ contract TallyTokenTest is Test {
         
         address newOwner = token.ownerOf(1);
         assertEq(newOwner, address(this));
+
+        address prevOwner2 = token.ownerOf(2);
+        assertEq(prevOwner2, user);
+
+        vm.prank(user);
+        tallyToken.safeTransferFrom(user, deployer, 2);
+
+        address newOwner2 = token.ownerOf(2);
+        assertEq(newOwner2, deployer);
+    }
+    
+    // test transfer edge cases when approvals are revoked or modified
+    function testTransferEdgeCases() public {
+        vm.startPrank(deployer);
+        kernel.executeAction(Actions.InstallModule, address(token));
+        kernel.executeAction(Actions.ActivatePolicy, address(tallyToken));
+        token.mintTo(user, 2);
+        vm.stopPrank();
+
+        // enable transfers
+        vm.prank(deployer);
+        tallyToken.toggleTransfersAllowed();
+        assertTrue(tallyToken.transfersAllowed());
+
+        // revoke approval and transfer with revoked approval
+        vm.startPrank(user);
+        token.approve(address(0), 1);
+        tallyToken.transferFrom(user, address(this), 1);
+        vm.stopPrank();
+        
+        address newOwner = token.ownerOf(1);
+        assertEq(newOwner, address(this));
+
+        // change approval and safeTransfer with altered approval
+        vm.startPrank(user);
+        token.approve(deployer, 2);
+        tallyToken.safeTransferFrom(user, deployer, 2);
+        vm.stopPrank();
+
+        address newOwner2 = token.ownerOf(2);
+        assertEq(newOwner2, deployer);
     }
 }
