@@ -63,6 +63,35 @@ contract TallyTokenTest is Test {
         assertEq(newDependentIndex, 0);
     }
 
+    // test minting through TallyToken policy
+    function testMintWithDelegate() public {
+        // install module and activate policy
+        vm.startPrank(deployer);
+        kernel.executeAction(Actions.InstallModule, address(token));
+        kernel.executeAction(Actions.ActivatePolicy, address(tallyToken));
+        vm.stopPrank();
+
+        // mint as deployer
+        vm.prank(deployer);
+        tallyToken.mintWithDelegate();
+
+        // after minting to deployer, check balance of deployer and owner of tokenId 1
+        uint256 deployerBalance = token.balanceOf(deployer);
+        address firstOwner = token.ownerOf(1);
+        assertEq(deployerBalance, 1);
+        assertEq(firstOwner, deployer);
+
+        // mint as user
+        vm.prank(user);
+        tallyToken.mintWithDelegate();
+
+        // after minting to user, check balance of deployer and owner of tokenId 2
+        uint256 userBalance = token.balanceOf(user);
+        address secondOwner = token.ownerOf(2);
+        assertEq(userBalance, 1);
+        assertEq(secondOwner, user);
+    }
+
     // test transfer and transferFrom can be enabled only by Medici admins
     // performs a transfer
     function testToggleTransfersEnabled() public {
@@ -137,5 +166,92 @@ contract TallyTokenTest is Test {
 
         address newOwner2 = token.ownerOf(2);
         assertEq(newOwner2, deployer);
+    }
+
+    // test delegations, first with mints and then redelegations
+    function testDelegations() public {
+        vm.startPrank(deployer);
+        kernel.executeAction(Actions.InstallModule, address(token));
+        kernel.executeAction(Actions.ActivatePolicy, address(tallyToken));
+
+        uint256 voteWeightBefore = token.getVotes(user);
+        assertEq(voteWeightBefore, 0);
+        token.mintTo(user, 1);
+        vm.stopPrank();
+
+        // ensure mintTo() increments vote weight and provided delegation to 'to'
+        uint256 voteWeightAfter = token.getVotes(user);
+        assertEq(voteWeightAfter, 1);
+        
+        address to = token.delegates(user);
+        assertEq(to, user);
+
+        // ensure mint() increments vote weight and provides delegation to self
+        uint256 voteWeightPre = token.getVotes(user);
+        assertEq(voteWeightPre, voteWeightAfter);
+        
+        vm.prank(user);
+        tallyToken.mintWithDelegate();
+        
+        uint256 voteWeightPost = token.getVotes(user);
+        assertEq(voteWeightPost, voteWeightPre + 1);
+
+        address self = token.delegates(user);
+        assertEq(self, user);
+    }
+
+    // test various redelegate() scenarios to catch any edge cases
+    // includes delegation with 0 balance, redelegation after mint, and redelegation after transfer
+    // keep in mind that redelegations do not delete mapping entries, but rather adjust their votes via checkpoint balances using OZ Checkpoints.sol
+    function testRedelegate() public {
+        vm.startPrank(deployer);
+        kernel.executeAction(Actions.InstallModule, address(token));
+        kernel.executeAction(Actions.ActivatePolicy, address(tallyToken));
+        vm.stopPrank();
+
+        uint256 voteWeightBefore = token.getVotes(user);
+        assertEq(voteWeightBefore, 0);
+
+        // attempt delegation without token balance
+        bytes memory error = abi.encodeWithSelector(Token_NotEnoughTokens.selector);
+        vm.expectRevert(error);
+        vm.prank(user, user);
+        tallyToken.redelegate(deployer);
+        
+        vm.prank(user);
+        tallyToken.mintWithDelegate();
+
+        uint256 voteWeight = token.getVotes(user);
+        assertEq(voteWeight, voteWeightBefore + 1);
+        address self = token.delegates(user);
+        assertEq(self, user);
+
+        // redelegate after minting
+        vm.prank(user, user);
+        tallyToken.redelegate(deployer);
+
+        uint256 voteWeightAfter = token.getVotes(user);
+        assertEq(voteWeightAfter, 0);
+        address newDelegate = token.delegates(user);
+        assertEq(newDelegate, deployer);
+        uint256 voteWeightDelegated = token.getVotes(deployer);
+        assertEq(voteWeightDelegated, 1);
+
+        // enable transfers then transfer after redelegating
+        vm.prank(deployer);
+        tallyToken.toggleTransfersAllowed();
+        vm.prank(user);
+        tallyToken.transferFrom(user, deployer, 1);
+
+        // redelegate to user
+        vm.prank(deployer, deployer);
+        tallyToken.redelegate(user);
+
+        uint256 voteWeightRedelegated = token.getVotes(deployer);
+        assertEq(voteWeightRedelegated, 0);
+        address transferDelegate = token.delegates(deployer);
+        assertEq(transferDelegate, user);
+        uint256 voteWeightTransfered = token.getVotes(user);
+        assertEq(voteWeightTransfered, 1);
     }
 }

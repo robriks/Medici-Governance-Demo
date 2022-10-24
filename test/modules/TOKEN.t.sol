@@ -79,8 +79,7 @@ contract TokenTest is Test {
         assertEq(newDependentIndex, 0);
     }
 
-    // test public mint() function works properly when called
-    // mint() is not a policy function as it is permissionless for anyone to call
+    // test public mint() function can only be called via the TallyToken policy
     function testMint() public {
         // install module and activate policy
         vm.startPrank(deployer);
@@ -88,25 +87,21 @@ contract TokenTest is Test {
         kernel.executeAction(Actions.ActivatePolicy, address(tallyToken));
         vm.stopPrank();
 
-        // mint as deployer
-        vm.prank(deployer);
-        token.mint();
-
-        // after minting to deployer, check balance of deployer and owner of tokenId 1
-        uint256 deployerBalance = token.balanceOf(deployer);
-        address firstOwner = token.ownerOf(1);
-        assertEq(deployerBalance, 1);
-        assertEq(firstOwner, deployer);
-
-        // mint as user
+        // attempt mint directly on TOKEN module as user
+        bytes memory error = abi.encodeWithSelector(Module_PolicyNotAuthorized.selector, user);
+        vm.expectRevert(error);
         vm.prank(user);
-        token.mint();
+        token.mint(user);
+
+        // successfully mint on TallyToken policy as user
+        vm.prank(user);
+        tallyToken.mintWithDelegate();
 
         // after minting to user, check balance of deployer and owner of tokenId 2
         uint256 userBalance = token.balanceOf(user);
-        address secondOwner = token.ownerOf(2);
+        address firstOwner = token.ownerOf(1);
         assertEq(userBalance, 1);
-        assertEq(secondOwner, user);
+        assertEq(firstOwner, user);
     }
 
     // test COMPTROLLER-restricted mintTo() function works properly

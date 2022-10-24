@@ -30,9 +30,11 @@ contract TallyToken is Policy {
     // @notice Required to initialize a Policy
     // @dev Sets permitted function signatures, module keycode, and address in the Kernel
     function requestPermissions() external view override onlyKernel returns (Permissions[] memory requests) {
-        requests = new Permissions[](2);
+        requests = new Permissions[](4);
         requests[0] = Permissions(toKeycode("TOKEN"), Token.transferFrom.selector);
         requests[1] = Permissions(toKeycode("TOKEN"), Token.safeTransferFrom.selector);
+        requests[2] = Permissions(toKeycode("TOKEN"), Token.mint.selector);
+        requests[3] = Permissions(toKeycode("TOKEN"), Token.delegate.selector);
     }
 
     // @notice Required to initialize a Policy
@@ -81,5 +83,18 @@ contract TallyToken is Policy {
             }
 
             token.safeTransferFrom(from, to, id);
+    }
+
+    // @notice Public mint function for users to mint their tokens
+    // @dev All mint functions are permissioned to the policy, save for the Medici admins' mintTo()
+    // @dev Votes are delegated to the minter by default and may be redelegated at any time
+    function mintWithDelegate() public {
+        token.mint(msg.sender);
+    }
+
+    // @notice Public redelegation function for users to redelegate their vote weight should they so desire
+    // @dev Delegation is permissioned only to the policy
+    function redelegate(address delegatee) public {
+        token.delegate(delegatee);
     }
 }

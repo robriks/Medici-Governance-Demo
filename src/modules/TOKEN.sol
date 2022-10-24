@@ -13,6 +13,7 @@ import { Kernel, Module, Keycode, Role, Policy } from "src/Kernel.sol";
 
 error Token_TransferDisabled();
 error Token_OnlyKernelAdmin();
+error Token_NotEnoughTokens();
 
 contract Token is Module, ERC721Votes {
 
@@ -52,7 +53,8 @@ contract Token is Module, ERC721Votes {
     //todo finish implementing tokenuri logic after consulting with medici on format/content
     //todo add _setTokenURI() function to give Medici and the DAO a way to change tokenURI if needed
     function tokenURI(uint256 id) public view override returns (string memory) {
-        return "hello world";
+        // placeholder NFT metadata that I put on arweave for fun
+        return "ar://VQkFO7gGhsZaC3SdbkzPoiOe_Z1NrqZajsqk0y0DTWo";
     }
 
     // @notice TransferFrom is disabled to start
@@ -93,14 +95,15 @@ contract Token is Module, ERC721Votes {
     // @notice Function for Medici community to mint governance NFTs
     // @dev Solmate's _safeMint() is chosen here in the mint logic to prevent unsafe smart contract minters
     // @dev The policy contract must be approved for all minted tokens so that it may perform transfers
-    function mint() public {
+    // @dev Votes are delegated to the minter by default and may be redelegated at any time
+    function mint(address account) permissioned public {
         _tokenId.increment();
         uint256 currentId = _tokenId.current();
 
-        _safeMint(msg.sender, currentId);
+        _safeMint(account, currentId);
 
-        Policy policy = kernel.moduleDependents(KEYCODE(), 0);
-        _approve(address(policy), currentId); 
+        _approve(msg.sender, currentId);
+        _delegate(account, account);
     }
 
     // @notice Admin-chosen users with comptroller role retain the ability to empower governors with new tokens
@@ -116,5 +119,19 @@ contract Token is Module, ERC721Votes {
             Policy policy = kernel.moduleDependents(KEYCODE(), 0);
             _approve(address(policy), currentId);
         }
+            _delegate(to, to);
+    }
+
+    // @notice This function provides for redelegation via TallyToken policy.
+    // @notice Each token holder must delegate their balance to an address that will vote based on its token weight
+    // @dev Redelegation from the policy means the caller logic of the parent function needs to be overidden
+    // @dev In this context tx.origin is never used for authorization and will only ever be users interacting with TallyToken policy
+    function delegate(address delegatee) permissioned public override {
+        // tx.origin here is safe as it is _never_ used for authentication and cannot be used for phishing vectors
+        address account = tx.origin;
+        if (balanceOf(account) == 0) {
+            revert Token_NotEnoughTokens();
+        }
+        _delegate(account, delegatee);
     }
 }
