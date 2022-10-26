@@ -87,12 +87,13 @@ contract TallyToken is Policy {
 
     // @notice Public mint function for users to mint their tokens
     // @dev All mint functions are permissioned to the policy, save for the Medici admins' mintTo()
-    // @dev Votes are delegated to the minter by default and may be redelegated at any time
+    // @dev Votes are delegated to the minter by default but may be redelegated at any time
     function mintWithDelegate() public {
         token.mint(msg.sender);
     }
 
-    // @notice Public redelegation function for users to redelegate their vote weight should they so desire
+    // @notice Delegation is assigned to the caller at mint time so this function allows for redelegation at any time
+    // @dev Delegations are updated upon transfers (if enabled)
     // @dev Delegation is permissioned only to the policy
     function redelegate(address delegatee) public {
         token.delegate(delegatee);

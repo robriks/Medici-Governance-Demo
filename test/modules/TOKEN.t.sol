@@ -30,10 +30,9 @@ contract TokenTest is Test {
         token = new Token(kernel);
         tallyToken = new TallyToken(kernel);
 
-        // grant COMPTROLLER role to deployer and to kernel
+        // grant COMPTROLLER role to deployer
         Role COMPTROLLER = token.COMPTROLLER();
         kernel.grantRole(COMPTROLLER, deployer);
-        kernel.grantRole(COMPTROLLER, address(kernel));
         
         vm.stopPrank();
     }

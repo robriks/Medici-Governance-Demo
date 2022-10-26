@@ -44,10 +44,6 @@ contract Token is Module, ERC721Votes {
         // These 'constructor' configurations may be decided by DAO/team when upgrading this module
         // uint initialTokenSupply = ????;
         // _setTokenURI(????) 
-        
-        // optional mintTo() call to initialize some governance tokens to Medici team/DAO
-        // keep in mind this will alter some test results if enabled
-        // mintTo(tx.origin, someAmount);
     }
 
     //todo finish implementing tokenuri logic after consulting with medici on format/content

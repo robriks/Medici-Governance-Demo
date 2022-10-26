@@ -251,7 +251,7 @@ contract TallyTokenTest is Test {
         assertEq(voteWeightRedelegated, 0);
         address transferDelegate = token.delegates(deployer);
         assertEq(transferDelegate, user);
-        uint256 voteWeightTransfered = token.getVotes(user);
-        assertEq(voteWeightTransfered, 1);
+        uint256 voteWeightTransferred = token.getVotes(user);
+        assertEq(voteWeightTransferred, 1);
     }
 }

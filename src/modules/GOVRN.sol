@@ -8,12 +8,18 @@ pragma solidity ^0.8.15;
 
 import { Governor } from "openzeppelin-contracts/governance/Governor.sol";
 import { GovernorVotes } from "openzeppelin-contracts/governance/extensions/GovernorVotes.sol";
+import "openzeppelin-contracts/governance/extensions/GovernorVotesQuorumFraction.sol";
+import "openzeppelin-contracts/governance/extensions/GovernorTimelockControl.sol";
+import "openzeppelin-contracts/governance/compatibility/GovernorCompatibilityBravo.sol";
 import { IVotes } from "openzeppelin-contracts/governance/utils/IVotes.sol";
-import { Kernel, Module, Keycode } from "src/Kernel.sol";
+import { Kernel, Module, Keycode, Role, Policy } from "src/Kernel.sol";
 
-contract Governance is Module, Governor, GovernorVotes {
+contract Governance is Module, Governor, GovernorVotes, GovernorCompatibilityBravo, GovernorVotesQuorumFraction, GovernorTimelockControl {
 
-    constructor(Kernel kernel_, IVotes _token) Module(kernel_) Governor("Governance") GovernorVotes(_token) {}
+    error Module_OnlyGovExecutor(address govExecutor);
+    error Module_NotEnoughVotes();
+
+    constructor(Kernel kernel_, IVotes _token, TimelockController _timelock) Module(kernel_) Governor("Governance") GovernorVotes(_token) GovernorVotesQuorumFraction(4) GovernorTimelockControl(_timelock) {}
 
     // @notice Returns keycode for Policy/Kernel management
     function KEYCODE() public pure override returns (Keycode) {
@@ -47,87 +53,57 @@ contract Governance is Module, Governor, GovernorVotes {
         return 1;
     }
 
-    function quorum(uint256 blockNumber) public pure override returns (uint256) {
+    function quorum(uint256 blockNumber) public pure override(IGovernor, GovernorVotesQuorumFraction) returns (uint256) {
         return 3;
     }
 
-    function _quorumReached(uint256 proposalId) internal view override returns (bool) {
-        /* if (_countVotes(uint256 proposalId,
-        address account,
-        uint8 support,
-        uint256 weight,
-        bytes memory params)
-        > quorum(block.current)) 
-        return false*/
-        
-        // else
-        return true;
-    }
-
-    function _voteSucceeded(uint256 proposalId) internal view override returns (bool) {
-        // if (_quorumReached && state(proposalId) == ProposalState.Active && probably other things)
-        //todo
-
-
-        return true;
-    }
-
-    // @notice The configuration of voting inputs and quorum counting
-    // @dev Bravo support means: 0 == for, 1 == against, 2 == abstain
-    // @dev Bravo quorum means only For votes (not abstentions) are counted towards quorum
-    function COUNTING_MODE() public pure override returns (string memory) {
-        return "support=bravo&quorum=bravo";
-    }
-
-    /* 
-    /// Token Dependency functions
-    */
-
-    // @notice Returns whether 'account' has cast a vote on 'proposalId'
-    function hasVoted(uint256 proposalId, address account) public view override returns (bool) {
-        // if (account has voted -how to check this/??) {}
-        return true;
-    }
-
-    // @notice Calculate vote counts from Medici ERC721 token weights
-    function _countVote(
-        uint256 proposalId,
-        address account,
-        uint8 support,
-        uint256 weight,
-        bytes memory params
-    ) internal override {
-        
-        
-        uint a = 1;
-        //todo
+    function getVotes(address account, uint256 blockNumber) public view override(IGovernor, Governor/*, GovernorVotes*/) returns (uint256) {
+        return super.getVotes(account, blockNumber);
     }
 
     /* 
     /// Governor Functions ///
     */
 
-    function state(uint256 proposalId) public view override returns (ProposalState) {
+    function state(uint256 proposalId) public view override(Governor, IGovernor, GovernorTimelockControl) returns (ProposalState) {
         return super.state(proposalId);
     }
 
+    // @param targets refers to the addresses to be called
+    // @param values refers to the call.value to provide to each address
+    // @param calldatas refers to the call.data to provide to each contract
+    // @param description refers to a proposal description alongside the execution
     function propose(
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
         string memory description
-    ) public override returns (uint256) {
+    ) public override(Governor, GovernorCompatibilityBravo, IGovernor) returns (uint256 proposalId) {
+        if (getVotes(msg.sender, block.number) < proposalThreshold()) { revert Module_NotEnoughVotes(); }
         return super.propose(targets, values, calldatas, description);
     }
     
+    // @notice Execution of proposals is open to anyone and everyone at the policy level to prevent governance stalling
+    // @param Only the TallyGovernor policy is granted the 'executor' role ///// maybe timelock?????
+    // function execute(uint256 proposalId) public override {
+        // address govExecutor = _executor();
+        // if (msg.sender != govExecutor) revert Module_OnlyGovExecutor(govExecutor);
+    // }
+
     function _execute(
         uint256 proposalId,
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
         bytes32 descriptionHash
-    ) internal override {
-        super._execute(proposalId, targets, values, calldatas, descriptionHash);
+    ) internal override(Governor, GovernorTimelockControl) {
+        super._execute(
+            proposalId,
+            targets,
+            values,
+            calldatas,
+            descriptionHash
+            );
     }
     
     function _cancel(
@@ -135,17 +111,22 @@ contract Governance is Module, Governor, GovernorVotes {
         uint256[] memory values,
         bytes[] memory calldatas,
         bytes32 descriptionHash
-    ) internal override returns (uint256) {
+    ) internal override(Governor, GovernorTimelockControl) returns (uint256) {
+        address govExecutor = _executor();
+        if (msg.sender != govExecutor) revert Module_OnlyGovExecutor(govExecutor);
+
         return super._cancel(targets, values, calldatas, descriptionHash);
     }
     
-    function _executor() internal view override returns (address) {
-        return address(kernel);
+    function _executor() internal view override(Governor, GovernorTimelockControl) returns (address) {
+        Policy policy = kernel.moduleDependents(KEYCODE(), 0);
+        return address(policy);
     }
     
-    function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(Governor, IERC165, GovernorTimelockControl) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
+
 
     //todo
     /*Governance function ideas:

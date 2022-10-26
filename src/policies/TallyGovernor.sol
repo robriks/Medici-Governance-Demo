@@ -11,7 +11,7 @@ import { toKeycode } from "../utils/KernelUtils.sol";
 import "../Kernel.sol";
 import "../modules/GOVRN.sol";
 
-contract Tally is Policy /*, IGovernor*/ {
+contract TallyGovernor is Policy /*, IGovernor*/ {
 
     // set by a call from the Kernel to configureDependencies() when this Policy is enabled in the Kernel registry
     Governance governance;
@@ -28,8 +28,8 @@ contract Tally is Policy /*, IGovernor*/ {
         requests[3] = Permissions(toKeycode("GOVRN"), governance.quorum.selector);
         requests[4] = Permissions(toKeycode("GOVRN"), governance.state.selector);
         requests[5] = Permissions(toKeycode("GOVRN"), governance.getVotes.selector);
-        requests[6] = Permissions(toKeycode("GOVRN"), governance.propose.selector);
-        requests[7] = Permissions(toKeycode("GOVRN"), governance.execute.selector);
+        requests[6] = Permissions(toKeycode("GOVRN"), 0x7d5e81e2); // governance.propose(address[],uint256[],bytes[],string).selector);
+        requests[7] = Permissions(toKeycode("GOVRN"), 0x2656227d); // governance.execute(uint256).selector);
         requests[8] = Permissions(toKeycode("GOVRN"), governance.castVote.selector);
         requests[9] = Permissions(toKeycode("GOVRN"), governance.castVoteWithReason.selector);
         requests[10] = Permissions(toKeycode("GOVRN"), governance.castVoteBySig.selector);
@@ -43,6 +43,7 @@ contract Tally is Policy /*, IGovernor*/ {
         dependencies[0] = governanceKeycode;
         // set governance in storage to dependency
         governance = Governance(payable(getModuleAddress(governanceKeycode)));
+        // set timelock to dependency?
     }
 
 
@@ -101,6 +102,7 @@ contract Tally is Policy /*, IGovernor*/ {
             return governance.propose(targets, values, calldatas, description);
         }
 
+        // @notice Execution of passed proposals is open to anyone and everyone by design so governance changes cannot stall
         function execute(
             address[] memory targets,
             uint256[] memory values,
@@ -160,6 +162,8 @@ contract Tally is Policy /*, IGovernor*/ {
 
             return governance.castVoteBySig(proposalId, support, v, r, s);
         }
+
+        // function cancel() { super._cancel() }
     */ 
 
 }
