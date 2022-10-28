@@ -57,8 +57,10 @@ contract Governance is Module, Governor, GovernorVotes, GovernorCompatibilityBra
         return 3;
     }
 
+    // @notice Returns the delegated balance of an account
+    // @param Since only current vote weight is desired, blockNumber is discarded and getPastVotes() is circumvented
     function getVotes(address account, uint256 blockNumber) public view override(IGovernor, Governor/*, GovernorVotes*/) returns (uint256) {
-        return super.getVotes(account, blockNumber);
+        return token.getVotes(account);
     }
 
     /* 

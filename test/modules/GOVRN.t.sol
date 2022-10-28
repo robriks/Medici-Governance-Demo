@@ -71,27 +71,74 @@ contract GovernanceTest is Test {
         assertEq(fromKeycode(addedKeycode), fromKeycode(governanceKeycode));
     }
 
-    // test making a proposal
+    // ensure proposals made by holders with less tokens than proposalThreshold revert as expected
+    function testProposeFailNoVotes() public {
+        uint256 lastBlock = block.number - 1;
+        uint256 noVotes = governance.getVotes(user3, lastBlock);
+        assertEq(noVotes, 0);
+        uint256 vote1 = governance.getVotes(deployer, lastBlock); 
+        assertEq(vote1, 1);
+        uint256 vote2 = governance.getVotes(user1, lastBlock);
+        assertEq(vote2, 1);
+        uint256 vote3 = governance.getVotes(user2, lastBlock);
+        assertEq(vote3, 1);
+
+        Governance newGovernance = new Governance(kernel, token, timelock);
+        address[] memory newModule = new address[](1);
+        newModule[0] = address(newGovernance);
+        uint256[] memory zero = new uint256[](1);
+        zero[0] = 0;
+        bytes[] memory data = new bytes[](1);
+        data[0] = abi.encodeWithSelector(kernel.executeAction.selector, Actions.InstallModule, address(newGovernance));
+        bytes memory error = abi.encodeWithSelector(Governance.Module_NotEnoughVotes.selector);
+        
+        vm.expectRevert(error);
+        vm.prank(user3);
+        governance.propose(
+            newModule,
+            zero,
+            data,
+            "reinstall module proposal FAIL (revert)"
+        );
+    }
+    
+    // test making a proposal to reinstall a module
     function testPropose() public {
         uint256 lastBlock = block.number - 1;
         uint256 noVotes = governance.getVotes(user3, lastBlock);
         assertEq(noVotes, 0);
-        uint256 vote1 = token.getVotes(deployer); // what's going on here??
+        uint256 vote1 = governance.getVotes(deployer, lastBlock); 
         assertEq(vote1, 1);
-        // uint256 vote2 = token.getVotes(user1, lastBlock);
-        // assertEq(vote2, 1);
-        // uint256 vote3 = token.getVotes(user2, lastBlock);
-        // assertEq(vote3, 1);
+        uint256 vote2 = governance.getVotes(user1, lastBlock);
+        assertEq(vote2, 1);
+        uint256 vote3 = governance.getVotes(user2, lastBlock);
+        assertEq(vote3, 1);
+
+        Governance newGovernance = new Governance(kernel, token, timelock);
+        address[] memory newModule = new address[](1);
+        newModule[0] = address(newGovernance);
+        uint256[] memory zero = new uint256[](1);
+        zero[0] = 0;
+        bytes[] memory data = new bytes[](1);
+        data[0] = abi.encodeWithSelector(kernel.executeAction.selector, Actions.InstallModule, address(newGovernance));
+        vm.prank(user1);
+        uint256 firstProposal = governance.propose(
+            newModule,
+            zero,
+            data,
+            "reinstall module proposal"
+        );
+
+        // assert pending status
+        IGovernor.ProposalState currentState = governance.state(firstProposal);
+        assertEq(uint(currentState), uint(IGovernor.ProposalState.Pending));
+
+        // assert proposalSnapshot(firstProposal)
     }
 
-
-// test _executor() in  returns kernel address
-  // can this work with a timelock? (timelock is usually set to executor)
+    // test voting, assert hasVoted(), proposalSnapshot(), test proposal failure
 
 // test votingDelay, votingPeriod w/reverts
-
-// test make proposal w/ proposalThreshold reverts, state()
-
 
 // test vote on proposal w/ state()
 
