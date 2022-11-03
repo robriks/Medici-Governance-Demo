@@ -60,7 +60,7 @@ contract Governance is Module, Governor, GovernorVotes, GovernorCompatibilityBra
     // @notice Returns the delegated balance of an account
     // @param Since only current vote weight is desired, blockNumber is discarded and getPastVotes() is circumvented
     function getVotes(address account, uint256 blockNumber) public view override(IGovernor, Governor/*, GovernorVotes*/) returns (uint256) {
-        return token.getVotes(account);
+        return super.getVotes(account, blockNumber);
     }
 
     /* 
@@ -71,6 +71,7 @@ contract Governance is Module, Governor, GovernorVotes, GovernorCompatibilityBra
         return super.state(proposalId);
     }
 
+    // @notice Overriding propose function that first checks vote weight (ie token balance) and then creates proposal
     // @param targets refers to the addresses to be called
     // @param values refers to the call.value to provide to each address
     // @param calldatas refers to the call.data to provide to each contract
@@ -81,8 +82,15 @@ contract Governance is Module, Governor, GovernorVotes, GovernorCompatibilityBra
         bytes[] memory calldatas,
         string memory description
     ) public override(Governor, GovernorCompatibilityBravo, IGovernor) returns (uint256 proposalId) {
-        if (getVotes(msg.sender, block.number) < proposalThreshold()) { revert Module_NotEnoughVotes(); }
+        if (getVotes(msg.sender, block.number - 1) < proposalThreshold()) { revert Module_NotEnoughVotes(); }
         return super.propose(targets, values, calldatas, description);
+    }
+
+    // @notice Overriding castVote function that first checks vote weight (ie token balance) and then casts vote for msg.sender
+    // @param proposalId refers to the hash identifier of the proposal to be voted on
+    function castVote(uint256 proposalId, uint8 support) public override(Governor, IGovernor) returns (uint256) {
+        if (getVotes(msg.sender, block.number - 1) < proposalThreshold()) { revert Module_NotEnoughVotes(); }
+        super.castVote(proposalId, support);
     }
     
     // @notice Execution of proposals is open to anyone and everyone at the policy level to prevent governance stalling
@@ -105,7 +113,7 @@ contract Governance is Module, Governor, GovernorVotes, GovernorCompatibilityBra
             values,
             calldatas,
             descriptionHash
-            );
+        );
     }
     
     function _cancel(
